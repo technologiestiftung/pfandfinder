@@ -1,0 +1,60 @@
+{
+  "data": [
+    {
+      "id": 1,
+      "lat": 52.52,
+      "lng": 13.402,
+      "fillLevel": 85,
+      "lastEmptied": "2023-04-10T08:30:00Z"
+    },
+    {
+      "id": 2,
+      "lat": 52.525,
+      "lng": 13.41,
+      "fillLevel": 45,
+      "lastEmptied": "2023-04-11T09:45:00Z"
+    },
+    {
+      "id": 3,
+      "lat": 52.527,
+      "lng": 13.397,
+      "fillLevel": 90,
+      "lastEmptied": "2023-04-09T07:15:00Z"
+    },
+    {
+      "id": 4,
+      "lat": 52.518,
+      "lng": 13.392,
+      "fillLevel": 30,
+      "lastEmptied": "2023-04-12T10:20:00Z"
+    },
+    {
+      "id": 5,
+      "lat": 52.529,
+      "lng": 13.415,
+      "fillLevel": 75,
+      "lastEmptied": "2023-04-10T14:00:00Z"
+    },
+    {
+      "id": 6,
+      "lat": 52.523,
+      "lng": 13.405,
+      "fillLevel": 95,
+      "lastEmptied": "2023-04-08T16:30:00Z"
+    },
+    {
+      "id": 7,
+      "lat": 52.515,
+      "lng": 13.4,
+      "fillLevel": 60,
+      "lastEmptied": "2023-04-11T12:15:00Z"
+    },
+    {
+      "id": 8,
+      "lat": 52.53,
+      "lng": 13.408,
+      "fillLevel": 80,
+      "lastEmptied": "2023-04-09T13:45:00Z"
+    }
+  ]
+}
