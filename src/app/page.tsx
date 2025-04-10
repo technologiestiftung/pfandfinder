@@ -2,9 +2,8 @@
 
 import DatasetSelector from "@/components/dataset-selector";
 import FallbackMap from "@/components/fallback-map";
-import { HotspotAnalyzer } from "@/components/hotspot-analyzer";
+import HotspotAnalyzer from "@/components/hotspot-analyzer";
 import { HotspotRecommendations } from "@/components/hotspot-recommendations";
-import InsightsPanel from "@/components/insights-panel";
 import MapContainer from "@/components/map-container";
 import { Button } from "@/components/ui/button";
 import { Loader2, Map } from "lucide-react";
@@ -18,9 +17,9 @@ export default function Home() {
       <header className="border-b bg-white p-4 shadow-sm">
         <div className="flex justify-between items-center">
           <div>
-            <h1 className="text-2xl font-bold">Urban Hotspot Analyzer</h1>
+            <h1 className="text-2xl font-bold">Pfandfinder</h1>
             <p className="text-muted-foreground">
-              Visualize and analyze urban data patterns
+              Visualize and analyze where the Pfand is
             </p>
           </div>
           <Button
@@ -36,7 +35,8 @@ export default function Home() {
       </header>
 
       <div className="flex flex-1 flex-col md:flex-row">
-        <div className="w-full md:w-3/4 h-[50vh] md:h-auto relative">
+        {/* Fixed height and width for map container */}
+        <div className="w-full md:w-3/4 h-[70vh] md:h-[calc(100vh-80px)] relative">
           <Suspense
             fallback={
               <div className="absolute inset-0 flex items-center justify-center bg-gray-100">
@@ -45,11 +45,13 @@ export default function Home() {
               </div>
             }
           >
-            {useMapbox ? <MapContainer /> : <FallbackMap />}
+            <div className="h-full w-full">
+              {useMapbox ? <MapContainer /> : <FallbackMap />}
+            </div>
           </Suspense>
         </div>
 
-        <div className="w-full md:w-1/4 border-l">
+        <div className="w-full md:w-1/4 border-l overflow-y-auto max-h-[70vh] md:max-h-[calc(100vh-80px)]">
           <div className="p-4">
             <DatasetSelector />
           </div>
@@ -71,9 +73,9 @@ export default function Home() {
             <HotspotRecommendations />
           </div>
 
-          <div className="border-t p-4">
+          {/* <div className="border-t p-4">
             <InsightsPanel />
-          </div>
+          </div> */}
         </div>
       </div>
     </main>

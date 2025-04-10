@@ -1,185 +1,256 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { useDatasets } from "@/hooks/use-datasets";
-import { AlertTriangle, CheckCircle, Loader2, RefreshCcw } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 import { useEffect, useState } from "react";
 
-export function HotspotAnalyzer() {
-  const { activeDatasets } = useDatasets();
-  const [insights, setInsights] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [isFallback, setIsFallback] = useState(false);
+// Interface for extracted hotspot information
+export interface Hotspot {
+  latitude: number;
+  longitude: number;
+  priority: number;
+  description: string;
+}
 
-  const analyzeData = async () => {
-    if (activeDatasets.length === 0) return;
+export default function HotspotAnalyzer() {
+  const { activeDatasets, availableDatasets } = useDatasets();
+  const [insights, setInsights] = useState<string>("");
+  const [loading, setLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
+  const [hotspots, setHotspots] = useState<Hotspot[]>([]);
+
+  // Analyze data when active datasets change
+  const analyzeHotspots = async () => {
+    if (activeDatasets.length === 0) {
+      setInsights("Please select at least one dataset to analyze.");
+      setHotspots([]);
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
 
     try {
-      setLoading(true);
-      setError(null);
-      setIsFallback(false);
-
-      // Create a timeout promise to abort if the request takes too long
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error("Request timed out")), 10000);
-      });
-
-      // Call our secure API route that handles the Mistral API
-      const fetchPromise = fetch("/api/mistral", {
+      const response = await fetch("/api/mistral", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ datasets: activeDatasets }),
+        body: JSON.stringify({
+          datasets: activeDatasets,
+        }),
       });
 
-      // Race between the fetch and the timeout
-      const response = (await Promise.race([
-        fetchPromise,
-        timeoutPromise,
-      ])) as Response;
-
       if (!response.ok) {
-        throw new Error(
-          `API returned ${response.status}: ${response.statusText}`
-        );
+        throw new Error(`API error: ${response.status}`);
       }
 
       const data = await response.json();
-
-      if (data.error) {
-        throw new Error(data.error);
-      }
-
       setInsights(data.text);
-      setIsFallback(data.fallback === true);
+      
+      // Extract hotspots from the analysis text
+      const extractedHotspots = extractHotspotsFromText(data.text);
+      setHotspots(extractedHotspots);
+      
+      console.log("Extracted hotspots:", extractedHotspots);
+      
+      // Dispatch custom event to notify the map component
+      const event = new CustomEvent('hotspotsUpdated', { 
+        detail: { hotspots: extractedHotspots } 
+      });
+      window.dispatchEvent(event);
+      
     } catch (err) {
-      console.error("Error analyzing data:", err);
-      setError("Unable to generate AI insights. Using pre-generated analysis.");
-
-      // Provide fallback insights after a short delay to show the error message
-      setTimeout(() => {
-        provideFallbackInsights();
-        setError(null);
-      }, 2000);
+      console.error("Error analyzing hotspots:", err);
+      setError(
+        `Failed to analyze data: ${
+          err instanceof Error ? err.message : String(err)
+        }`
+      );
+      setHotspots([]);
     } finally {
       setLoading(false);
     }
   };
 
-  // Add this function to handle fallback insights
-  const provideFallbackInsights = () => {
-    // Pre-generated insights for different dataset combinations
-    const preGeneratedInsights: Record<string, string> = {
-      // Single dataset insights
-      trashcans:
-        "Analysis shows 40% of trash cans are over capacity in downtown areas, particularly during lunch hours (12-2pm) and after work (5-7pm). Consider adding more bins at these peak times or increasing collection frequency in high-traffic areas.",
-      events:
-        "Event scheduling shows potential congestion in the central district this weekend with three major events overlapping. Consider coordinating with event organizers to stagger start times or prepare additional transportation options.",
-      parks:
-        "Park usage data indicates concentrated activity around playgrounds and picnic areas, with 70% higher foot traffic on weekends. Facilities in these high-traffic areas show increased wear and may require more frequent maintenance.",
-      people:
-        "Pedestrian traffic is concentrated in commercial districts during lunch hours and early evening on weekdays. Weekend patterns differ significantly with more dispersed activity throughout the day.",
-      // Multi-dataset insights (abbreviated for brevity)
-      "trashcans,events,parks,people":
-        "Comprehensive analysis reveals five critical hotspots where all factors converge. Downtown Junction shows the highest pressure point with upcoming events, peak pedestrian traffic, park proximity, and insufficient waste facilities. Recommend coordinated intervention including increased waste collection, traffic management, and potentially event rescheduling to distribute impact.",
-    };
-
-    // Create a key from the active datasets (sorted to ensure consistent lookup)
-    const key = [...activeDatasets].sort().join(",");
-
-    // Get the pre-generated insight or fallback to a generic one
-    const insight =
-      preGeneratedInsights[key] ||
-      "Analysis of the selected datasets shows several potential hotspots requiring attention. The correlation between these factors suggests targeted interventions could significantly improve urban efficiency and cleanliness.";
-
-    setInsights(insight);
-    setIsFallback(true);
+  // Extract hotspot coordinates and priorities from the analysis text
+  const extractHotspotsFromText = (text: string): Hotspot[] => {
+    const hotspots: Hotspot[] = [];
+    
+    // First try to find structured priority areas with numbered sections
+    const priorityBlocks = text.split(/\d+\.\s+Priority\s+Area[:\s]*/i);
+    
+    if (priorityBlocks.length > 1) {
+      // Skip the first element, which is likely text before the first priority area
+      priorityBlocks.slice(1).forEach((block, index) => {
+        // Various coordinate patterns to try matching
+        const coordPatterns = [
+          /(?:coordinates|at)\s*\((\d+\.\d+),\s*(\d+\.\d+)\)/i,  // Coordinates (52.52, 13.405)
+          /(?:coordinates|at)\s*\((\d+(?:\.\d+)?)[,\s]+(\d+(?:\.\d+)?)\)/i,  // Coordinates (52.52, 13.405) with optional spaces
+          /\((\d+\.\d+)[°,\s]*[N]?[,\s]+(\d+\.\d+)[°,\s]*[E]?\)/i,  // (52.52° N, 13.405° E)
+          /(\d+\.\d+)[°,\s]*[N]?[,\s]+(\d+\.\d+)[°,\s]*[E]?/i,  // 52.52° N, 13.405° E
+          /latitude[:\s]+(\d+\.\d+)[,\s]+longitude[:\s]+(\d+\.\d+)/i,  // latitude: 52.52, longitude: 13.405
+          /coordinates[:\s]+(\d+\.\d+)[,\s]+(\d+\.\d+)/i,  // coordinates: 52.52, 13.405
+        ];
+        
+        let coordMatch = null;
+        
+        // Try each pattern until we find a match
+        for (const pattern of coordPatterns) {
+          coordMatch = block.match(pattern);
+          if (coordMatch) break;
+        }
+        
+        if (coordMatch) {
+          const lat = parseFloat(coordMatch[1]);
+          const lng = parseFloat(coordMatch[2]);
+          
+          if (!isNaN(lat) && !isNaN(lng)) {
+            // Get description from the rest of the block
+            let description = block.substring(coordMatch.index + coordMatch[0].length).trim();
+            
+            // If the description is too long, truncate it
+            if (description.length > 200) {
+              description = description.substring(0, 200) + '...';
+            }
+            
+            // Remove any trailing periods or punctuation
+            description = description.replace(/[.,:;]+$/, '');
+            
+            hotspots.push({
+              latitude: lat,
+              longitude: lng,
+              priority: index + 1,
+              description: description || `Priority Area ${index + 1}`
+            });
+          }
+        }
+      });
+    }
+    
+    // If we couldn't extract any hotspots using priority areas,
+    // fall back to looking for coordinates anywhere in the text
+    if (hotspots.length === 0) {
+      // Look for any coordinates in the text with various formats
+      const generalCoordPattern = /(\d+\.\d+)[°,\s]*[N]?[,\s]+(\d+\.\d+)[°,\s]*[E]?/g;
+      let match;
+      let index = 0;
+      
+      while ((match = generalCoordPattern.exec(text)) !== null && index < 5) {
+        const lat = parseFloat(match[1]);
+        const lng = parseFloat(match[2]);
+        
+        if (!isNaN(lat) && !isNaN(lng)) {
+          // Extract surrounding context for description
+          const contextStart = Math.max(0, match.index - 100);
+          const contextEnd = Math.min(text.length, match.index + match[0].length + 100);
+          let context = text.substring(contextStart, contextEnd);
+          
+          // Try to find sentence boundaries
+          const sentenceStart = context.lastIndexOf('. ', match.index - contextStart);
+          const sentenceEnd = context.indexOf('. ', match.index - contextStart + match[0].length);
+          
+          if (sentenceStart !== -1 && sentenceEnd !== -1) {
+            context = context.substring(sentenceStart + 2, sentenceEnd + 1);
+          } else if (sentenceEnd !== -1) {
+            context = context.substring(0, sentenceEnd + 1);
+          } else if (sentenceStart !== -1) {
+            context = context.substring(sentenceStart + 2);
+          }
+          
+          // Clean up the context
+          context = context.trim();
+          if (context.length > 200) {
+            context = context.substring(0, 200) + '...';
+          }
+          
+          hotspots.push({
+            latitude: lat,
+            longitude: lng,
+            priority: index + 1,
+            description: context || `Location at coordinates (${lat}, ${lng})`
+          });
+          
+          index++;
+        }
+      }
+    }
+    
+    return hotspots;
   };
 
+  // Automatically analyze when datasets change
   useEffect(() => {
-    // Reset state when datasets change
-    setInsights(null);
-    setError(null);
-    setIsFallback(false);
-
-    if (activeDatasets.length === 0) return;
-
-    analyzeData();
+    if (activeDatasets.length > 0) {
+      analyzeHotspots();
+    }
   }, [activeDatasets]);
 
-  if (activeDatasets.length === 0) {
-    return (
-      <Card>
-        <CardContent className="p-4 text-center">
-          <AlertTriangle className="h-5 w-5 text-amber-500 mx-auto mb-2" />
-          <p className="text-sm text-muted-foreground">
-            Select datasets to generate AI insights
-          </p>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  if (loading) {
-    return (
-      <Card>
-        <CardContent className="p-4 text-center">
-          <Loader2 className="h-5 w-5 animate-spin mx-auto mb-2" />
-          <p className="text-sm text-muted-foreground">
-            Analyzing {activeDatasets.length} datasets...
-          </p>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  if (error) {
-    return (
-      <Card>
-        <CardContent className="p-4 text-center">
-          <AlertTriangle className="h-5 w-5 text-red-500 mx-auto mb-2" />
-          <p className="text-sm text-muted-foreground">{error}</p>
-        </CardContent>
-      </Card>
-    );
-  }
-
   return (
-    <Card>
-      <CardContent className="p-4">
-        {insights ? (
-          <>
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center">
-                <CheckCircle className="h-4 w-4 text-green-500 mr-2" />
-                <p className="text-sm font-medium">
-                  {isFallback ? "Analysis Complete" : "AI Analysis Complete"}
-                </p>
+    <div className="space-y-4">
+      <div className="flex justify-between items-center">
+        <h3 className="text-lg font-semibold">Trash Hotspot Analysis</h3>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={analyzeHotspots}
+          disabled={loading || activeDatasets.length === 0}
+          className="flex items-center gap-1"
+        >
+          <RefreshCw
+            className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`}
+          />
+          <span>Refresh Analysis</span>
+        </Button>
+      </div>
+
+      {error && (
+        <div className="p-4 text-sm bg-red-50 text-red-600 rounded-md">
+          {error}
+        </div>
+      )}
+
+      {activeDatasets.length === 0 ? (
+        <div className="p-4 text-sm bg-amber-50 text-amber-600 rounded-md">
+          Select at least one dataset to analyze potential trash hotspots.
+        </div>
+      ) : loading ? (
+        <div className="animate-pulse space-y-2">
+          <div className="h-4 bg-gray-200 rounded w-3/4"></div>
+          <div className="h-4 bg-gray-200 rounded w-full"></div>
+          <div className="h-4 bg-gray-200 rounded w-5/6"></div>
+          <div className="h-4 bg-gray-200 rounded w-2/3"></div>
+        </div>
+      ) : (
+        <>
+          <div className="text-sm space-y-2 whitespace-pre-line">{insights}</div>
+          
+          {hotspots.length > 0 && (
+            <div className="mt-4 border-t pt-4">
+              <h4 className="text-sm font-medium mb-2">Identified Hotspots:</h4>
+              <div className="space-y-2 text-sm">
+                {hotspots.map((hotspot, index) => (
+                  <div key={index} className="flex items-start gap-2">
+                    <div className={`flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center 
+                      ${hotspot.priority === 1 ? 'bg-red-500' : 
+                        hotspot.priority === 2 ? 'bg-orange-500' : 'bg-yellow-500'}`}>
+                      <span className="text-white text-xs font-bold">{hotspot.priority}</span>
+                    </div>
+                    <div>
+                      <div className="font-medium">Priority {hotspot.priority}</div>
+                      <div className="text-muted-foreground text-xs">
+                        Coordinates: {hotspot.latitude.toFixed(4)}, {hotspot.longitude.toFixed(4)}
+                      </div>
+                      <div className="text-xs mt-1">{hotspot.description}</div>
+                    </div>
+                  </div>
+                ))}
               </div>
-              {isFallback && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 px-2"
-                  onClick={analyzeData}
-                  disabled={loading}
-                >
-                  <RefreshCcw className="h-3 w-3 mr-1" />
-                  <span className="text-xs">Retry AI</span>
-                </Button>
-              )}
             </div>
-            <p className="text-sm">{insights}</p>
-          </>
-        ) : (
-          <p className="text-sm text-muted-foreground text-center">
-            No insights available
-          </p>
-        )}
-      </CardContent>
-    </Card>
+          )}
+        </>
+      )}
+    </div>
   );
 }

@@ -55,11 +55,11 @@ export async function POST(request: Request) {
               {
                 role: "system",
                 content:
-                  "You are an urban data analyst specialized in identifying waste management hotspots based on urban data. Your task is to analyze data about trashcans, people density, and events to find areas where trash is likely to accumulate and where additional waste management resources should be deployed.",
+                  "You are an urban data analyst specialized in identifying optimal locations for deposit bottle collection (Pfandsammeln) based on urban data. Your task is to analyze data about trashcans, people density, and events to find areas where discarded deposit bottles are likely to accumulate. Focus on areas where bottle collectors would have the highest success, such as high foot traffic zones, event locations, and places with overflowing trashcans.",
               },
               {
                 role: "user",
-                content: `I need to optimize trash collection in Berlin. I have the following data:\n\n${datasetDescriptions}\n\nAnalyze this data to identify potential hotspots where trash is likely to accumulate. Focus on areas with high people density, near events, and with currently full trashcans. Provide a specific analysis with geographic coordinates for the top 3 priority areas that need immediate attention.`,
+                content: `I want to find the best places in Berlin to collect Pfand bottles. I have the following data:\n\n${datasetDescriptions}\n\nAnalyze this data to identify potential hotspots for Pfandsammeln. Focus on areas with high people density, near events, and where trashcans are currently full. Provide a specific analysis with geographic coordinates for the top 3 areas where collectors are most likely to find deposit bottles right now.`,
               },
             ],
             temperature: 0.7,
